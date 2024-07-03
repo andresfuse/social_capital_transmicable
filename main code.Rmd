@@ -1,0 +1,199 @@
+---
+title: "social_capital_main"
+author: "Andres Useche"
+date: "2023-10-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#Install libraries
+install.packages(c("lcmm","readxl","tidyverse","ggplot2","ggpubr",
+                   "readr","depmixS4","writexl","rstatix"))
+```
+
+```{r setup, include=FALSE}
+#Upload libraries
+
+library(lcmm)
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(mixAK)
+library(depmixS4)
+library(writexl)
+library(rstatix)
+library(ggpubr)
+```
+
+```{r pressure, echo=FALSE}
+#Uploading data
+#Data is available upon request
+
+t0 <- "code for uploading data for baseline"
+t1 <- "code for uploading data for follow-up"
+
+t0 <- t0%>%
+  filter(ID%in%t1$T1_ID)
+
+```
+
+```{r}
+#Selecting and relabeling variables
+
+nt0 <- t0[,c("ID","localidad","SC_red_per","SC_red_org","SC_red_est","SC_red_pri","Q106new_1","Q107new_1",
+           "emp_seg_ind","emp_seg_bar","emp_tra_ind","emp_tra_vec","emp_tra_bar","SC_grupo",
+           "SC_grupos_infra","Q911new","Q914new","Q915new","Q916new","Q917new","SC_red_1_fam",
+           "SC_red_1_am_vec","SC_red_1_nin","SC_red_2_fam","SC_red_2_am_vec","SC_red_2_nin",
+           "SC_red_3_fam","SC_red_3_am_vec","SC_red_3_nin","Q1015new_1","Q1016new_1","Q1017new_1")]
+nt1 <- t1[,c("T1_ID","T1_localidad","SC_red_per","SC_red_org","SC_red_est","SC_red_pri","T1_Q109new_1","T1_Q110new_1",
+           "emp_seg_ind","emp_seg_bar","emp_tra_ind", "emp_tra_vec","emp_tra_bar","T1_SC_grupo",
+           "T1_SC_grupos_infra","T1_Q94_1new","T1_Q94_4new","T1_Q94_5new","T1_Q94_6new","T1_Q94_7new","SC_red_1_fam",
+           "SC_red_1_am_vec","SC_red_1_nin","SC_red_2_fam","SC_red_2_am_vec","SC_red_2_nin",
+           "SC_red_3_fam","SC_red_3_am_vec","SC_red_3_nin","T1_Q104_5new_1","T1_Q104_6new_1","T1_Q104_7new_1")]
+
+colnames(nt0) <- c("id","localidad","Rpe","Ro","Res","Rpr","Ci","Ct","Esi","Esb","Eti","Etv","Etb","Gm","Gi",
+                 "Gs","Ga","Gse","Gt","Gtr","v1f0","v1av0","v1n0","v2f0","v2av0","v2n0","v3f0",
+                 "v3av0","v3n0","Tg","Tp","Tc")
+colnames(nt1) <- c("id","localidad","Rpe","Ro","Res","Rpr","Ci","Ct","Esi","Esb","Eti","Etv","Etb","Gm","Gi",
+                 "Gs","Ga","Gse","Gt","Gtr","v1f0","v1av0","v1n0","v2f0","v2av0","v2n0","v3f0",
+                 "v3av0","v3n0","Tg","Tp","Tc")
+
+nt0$ntimes <- 0
+nt1$ntimes <- 1
+
+base <- rbind(nt0,nt1)
+```
+
+```{r}
+
+```
+
+
+# Part 1: Estimating latent classes
+
+```{r}
+#Defining model for estimating Hidden Latten Model
+
+mod<-depmix(list(Rpe~1,Ro~1,Res~1,Rpr~1,Ci~1,Ct~1,Esi~1,Esb~1,Eti~1,Etv~1,Etb~1,Gm~1,Gi~1,
+                   Gs~1,Ga~1,Gse~1,Gt~1,Gtr~1,v1f0~1,v1av0~1,v1n0~1,v2f0~1,v2av0~1,v2n0~1,v3f0~1,
+                   v3av0~1,v3n0~1,Tg~1,Tp~1,Tc~1),
+            transition = ~Rpe+Ro+Res+Rpr+Ci+Ct+Esi+Esb+Eti+Etv+Etb+Gm+Gi+
+            Gs+Ga+Gse+Gt+Gtr+v1f0+v1av0+v1n0+v2f0+v2av0+v2n0+v3f0+
+            v3av0+v3n0+Tg+Tp+Tc,
+            data = base,nstates = 3,
+            family = list(multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity"),
+                          multinomial("identity"),multinomial("identity")))
+fm<-fit(mod,verbose = T,emc=em.control(maxit = 2500,tol = 1e-10,rand=T))
+
+```
+
+```{r}
+#Extracting posterior probabilities and latent classes
+
+posterior_probabilities <- fm@posterior
+base$latent_classes <- fm@response
+
+base <- cbind(base,posterior_probabilities)
+
+```
+
+```{r}
+#Transition matrix (Table 4)
+
+prop.table(table(base$latent_classes[base$ntimes == 0],
+                 base$latent_classes[base$ntimes == 1]),1) #Complete cases
+
+prop.table(table(base$latent_classes[base$ntimes == 0 & base$localidad == "Ciudad Bolivar"],
+                 base$latent_classes[base$ntimes == 1 & base$localidad == "Ciudad Bolivar"]),1) #Intervention group
+
+prop.table(table(base$latent_classes[base$ntimes == 0 & base$localidad == "San Cristobal"],
+                 base$latent_classes[base$ntimes == 1 & base$localidad == "San Cristobal"]),1) #Control group
+```
+
+
+# Part 2: estimations for the effect of the intervention on social capital class transition
+
+```{r}
+#Uploading sociodemographic data and merging with latent classes
+
+sociodemographic <- "upload sociodemographic data"
+base <- base%>%
+  left_join(sociodemographic,by = c("id"="ID"))
+
+```
+
+```{r}
+#Recategorize variables
+
+base$Q13mod <- NA
+base$Q13mod <- ifelse(base$Q13==1,"A",base$Q13mod) #single(A)
+base$Q13mod <- ifelse(base$Q13%in%c(3,4),"B",base$Q13mod) #Married/partnered(B)
+base$Q13mod <- ifelse(base$Q13%in%c(2,5,6),"C",base$Q13mod) #Divorced/separated/widow (C)
+base$Q16mod <- NA
+base$Q16mod <- ifelse(base$Q16%in%c(1,2,3,98),"A",base$Q16mod) #??? Elementary(A)
+base$Q16mod <- ifelse(base$Q16==4,"B",base$Q16mod) #High school(B)
+base$Q16mod <- ifelse(base$Q16==5,"C",base$Q16mod) #Technical/college/graduate(C)
+base$Q116mod <- NA
+base$Q116mod <- ifelse(base$Q116==1,"A",base$Q116mod) #??? 1 minimal wage ($280 USD)(A)
+base$Q116mod <- ifelse(base$Q116==2,"B",base$Q116mod) #> 1 -  ??? 2 minimal wages ($281-$1,120USD)(B)
+base$Q116mod <- ifelse(base$Q116%in%c(3,4,5),"C",base$Q116mod) #> 2 minimal wages (>$1,120 USD)(C)
+base$Q116mod <- ifelse(base$Q116==999,"D",base$Q116mod) #Non-response(D)
+base$Q17mod <- NA
+base$Q17mod <- ifelse(base$Q17==1,"A",base$Q17mod) #Working(A)
+base$Q17mod <- ifelse(base$Q17==4,"B",base$Q17mod) #Studying(B)
+base$Q17mod <- ifelse(base$Q17==5,"C",base$Q17mod) #Household labor(C)
+base$Q17mod <- ifelse(base$Q17%in%c(2,3,6,7),"D",base$Q17mod) #No occupation(D)
+base$Q13mod <- as.factor(base$Q13mod)
+base$Q16mod <- as.factor(base$Q16mod)
+base$Q116mod <- as.factor(base$Q116mod)
+base$Q17mod <- as.factor(base$Q17mod)
+base$Q11 <- as.factor(base$Q11)
+
+```
+
+```{r}
+#Creating class transitions and estimating model with covariates
+
+base_t0 <- base%>%
+  filter(ntimes == 0)
+
+base_t1 <- base%>%
+  filter(ntimes == 1)
+
+base_t1$y11 <- ifelse(base_t0$state==1 & base_t1$state==1,1,0)
+base_t1$y12 <- ifelse(base_t0$state==1 & base_t1$state==2,1,0)
+base_t1$y13 <- ifelse(base_t0$state==1 & base_t1$state==3,1,0)
+base_t1$y21 <- ifelse(base_t0$state==2 & base_t1$state==1,1,0)
+base_t1$y22 <- ifelse(base_t0$state==2 & base_t1$state==2,1,0)
+base_t1$y23 <- ifelse(base_t0$state==2 & base_t1$state==3,1,0)
+base_t1$y31 <- ifelse(base_t0$state==3 & base_t1$state==1,1,0)
+base_t1$y32 <- ifelse(base_t0$state==3 & base_t1$state==2,1,0)
+base_t1$y33 <- ifelse(base_t0$state==3 & base_t1$state==3,1,0)
+
+```
+
+```{r}
+#Generating the estimates and confidence intervals
+
+reg <- glm(y13 ~ factor(localidad) + Q11 + Q12 + Q13mod + Q16mod + Q17mod,
+         data = base_t1,family = "binomial") #change the y variable using the ones created in last chunk
+
+estimates <- exp(coef(reg))
+confidence_interval <- exp(confint(reg))
+
+```
+
